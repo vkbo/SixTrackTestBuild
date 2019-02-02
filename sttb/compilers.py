@@ -12,7 +12,7 @@ import logging
 
 from .functions import sysCall, logWrap
 
-logger = logging.getLogger("tbsixtrack")
+logger = logging.getLogger("sttb-logger")
 
 class Compilers():
 

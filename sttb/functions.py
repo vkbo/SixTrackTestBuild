@@ -11,7 +11,16 @@
 import logging
 import subprocess
 
-logger = logging.getLogger("tbsixtrack")
+logger = logging.getLogger("sttb-logger")
+
+def endExec(errMsg = None):
+  if errMsg is None:
+    logger.info("All done! Exiting ...")
+    exit(0)
+  else:
+    logger.error(errMsg)
+    logger.critical("Exiting with status 1")
+    exit(1)
 
 # Wrapper function for system calls
 def sysCall(callStr):

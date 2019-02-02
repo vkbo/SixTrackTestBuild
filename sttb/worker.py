@@ -10,21 +10,25 @@
 
 import logging
 
-from os      import path
-from time    import time
-from hashlib import md5
+from os         import path
+from time       import time
+from hashlib    import md5
 
-logger = logging.getLogger("tbsixtrack")
+from .compilers import Compilers
 
-class JobsWrapper():
+logger = logging.getLogger("sttb-logger")
 
-  def __init__(self, theConfig, theCompilers):
+class Worker():
+
+  def __init__(self, theConfig, workerName):
 
     self.theConfig    = theConfig
-    self.theCompilers = theCompilers
+    self.workerName   = workerName
+    self.theCompilers = Compilers(self.theConfig)
     self.theJobs      = []
-
     self.gitHash      = None
+
+    self.addCompiler  = self.theCompilers.addCompiler
 
     return
 
@@ -33,19 +37,15 @@ class JobsWrapper():
     logger.info("Current git hash is: %s" % self.gitHash)
     return
 
-  def addJob(self, jobName, jobFlags, withCompilers=[], buildTypes=["Release"]):
-    if self.gitHash is None:
-      raise ValueError("No git hash set in JobsWrapper")
-    for jobCompiler in withCompilers:
-      if self.theCompilers.checkCompiler(jobCompiler) == False:
-        logger.warning("Skipping job with compiler %s for flags %s" % (jobCompiler, jobFlags))
-        continue
-      for buildType in buildTypes:
-        if buildType not in ["Release","Debug"]:
-          logger.warning("Skipping job with build type %s for flags %s" % (buildType, jobFlags))
-          continue
-        theJob = BuildJob(self.theConfig, self.gitHash, jobName, jobFlags, jobCompiler, buildType)
-        self.theJobs.append(theJob)
+  def addJob(self, jobName, buildCompiler, buildType, buildFlags, testFlags=None):
+    if self.theCompilers.checkCompiler(buildCompiler) == False:
+      logger.warning("Skipping job with compiler %s for flags %s" % (jobCompiler, jobFlags))
+      return
+    if buildType not in ["Release","Debug"]:
+      logger.warning("Skipping job with unknown build type %s for flags %s" % (buildType, jobFlags))
+      return
+    theJob = BuildJob(self.theConfig, jobName, buildCompiler, buildType, buildFlags, testFlags)
+    self.theJobs.append(theJob)
     return
 
   def addTest(self, testFlags, jobFlags, withCompilers=[], buildTypes=["Release"]):
@@ -68,26 +68,25 @@ class JobsWrapper():
 
 class BuildJob():
 
-  def __init__(self, theConfig, gitHash, jobName, jobFlags, jobCompiler, buildType="Release"):
+  def __init__(self, theConfig, jobName, buildCompiler, buildType, buildFlags, testFlags):
 
-    self.jobPath     = theConfig.jobPath
-    self.buildPath   = theConfig.buildPath
-    self.sourcePath  = theConfig.sourcePath
-    self.buildCores  = theConfig.buildCores
-    self.testCores   = theConfig.testCores
+    self.jobName       = jobName.strip()
+    self.buildCompiler = buildCompiler
+    self.buildType     = buildType
+    self.buildFlags    = buildFlags.split()
+    self.testFlags     = testFlags
 
-    self.gitHash     = gitHash
-    self.jobName     = jobName.strip()
-    self.jobFlags    = jobFlags.split()
-    self.jobCompiler = jobCompiler
-    self.buildType   = buildType
-    self.testFlags   = None
+    self.gitHash       = theConfig.gitHash
 
-    self.buildOpt    = self._makeOptString(self.jobFlags, jobCompiler, buildType)
+    self.buildOpt    = self._makeOptString(self.buildFlags, self.buildCompiler, self.buildType)
     self.buildKey    = self._makeKey(self.buildOpt)
     self.buildName   = "Build_"+self.buildKey
 
-    logger.info("Added build job '%s'" % self.buildOpt)
+    if self.testFlags is None:
+      logger.info("Added build job '%s'" % self.buildOpt)
+    else:
+      logger.info("Added build job '%s' with test '%s'" % (self.buildOpt,self.testFlags))
+
 
     return
 
@@ -130,13 +129,14 @@ class BuildJob():
     return tmpKey == self.buildKey
 
   def _makeOptString(self, jobFlags, compExec, buildType):
-    return ("%s %s %s" % (compExec, buildType.strip().lower(), " ".join(jobFlags))).strip()
+    return ("%s %s %s" % (compExec, buildType.strip(), " ".join(jobFlags))).strip()
 
   def _makeKey(self, optString):
     return md5((self.gitHash+"_"+optString).encode("utf-8")).hexdigest()
 
   def _assembleCMakeFlags(self):
-    theFlags  = "-DCMAKE_Fortran_COMPILER=%s " % self.jobCompiler
+    theFlags  = "-G \"Unix Makefiles\""
+    theFlags += "-DCMAKE_Fortran_COMPILER=%s " % self.jobCompiler
     theFlags += "-DCMAKE_BUILD_TYPE=%s "       % self.buildType
     for jobFlag in self.jobFlags:
       if jobFlag == "": continue

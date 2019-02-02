@@ -10,14 +10,12 @@
 
 import logging
 
-from sttb.compilers import Compilers
-from sttb.config    import Config
-from sttb.jobs      import JobsWrapper
-from sttb.results   import Results
+from sttb.config import Config
+from sttb.worker import Worker
 
 logger = logging.getLogger("tbsixtrack")
 
-__all__ = ["Compilers","Config","JobsWrapper","Results"]
+__all__ = ["Worker","Config"]
 
 # Package Meta
 __author__     = "Veronica Berglyd Olsen"
