@@ -17,6 +17,7 @@ logger = logging.getLogger("sttb-logger")
 
 theConfig = Config(
   workDir  = "/scratch/SixTrackTestBuilds",
+  jobsDir  = "/scratch/SixTrackTestBuilds/sync/jobs",
   logLevel = "debug"
 )
 theConfig.gitCheckout(sys.argv)
@@ -27,6 +28,7 @@ theConfig.gitCheckout(sys.argv)
 
 theWorker = Worker(theConfig, "Worker1")
 theWorker.addCompiler("gfortran", "--version")
+theWorker.setLibDependencies(["naff"])
 
 ##
 #  Add the Jobs
@@ -35,6 +37,8 @@ theWorker.addCompiler("gfortran", "--version")
 theWorker.addJob("Standard Single", "gfortran", "Release", "-64BITM -CRLIBM 32BITM",  None)
 theWorker.addJob("Standard Double", "gfortran", "Release", "",                        "-E prob")
 theWorker.addJob("Standard Quad",   "gfortran", "Release", "-64BITM -CRLIBM 128BITM", None)
+
+theWorker.writeJobFiles()
 
 # theJobs = JobsWrapper(theConfig, theCompilers)
 # theJobs.setCurrentHash(gitHash)

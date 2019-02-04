@@ -19,14 +19,21 @@ logger = logging.getLogger("sttb-logger")
 
 class Config():
 
-  def __init__(self, workDir, logLevel="INFO"):
+  def __init__(self, workDir, jobsDir, logLevel="INFO"):
 
     if not path.isdir(workDir):
       raise FileNotFoundError("Missing folder: %s" % workDir)
 
+    if not path.isdir(jobsDir):
+      raise FileNotFoundError("Missing folder: %s" % jobsDir)
+    else:
+      self.jobsDir = jobsDir
+
     self.gitMode   = None
     self.gitTarget = None
     self.gitHash   = None
+    self.gitRef    = None
+    self.gitMsg    = ""
 
     self.repoPath  = path.join(workDir, "repo")
     self.logPath   = path.join(workDir, "logs")
@@ -44,53 +51,49 @@ class Config():
 
     if len(theArgs) < 3:
       endExec("Not enough input arguments")
-    if theArgs[1] in ("branch","pr","tag"):
+    if theArgs[1] in ("branch","pr","merge","tag"):
       self.gitMode   = theArgs[1]
       self.gitTarget = theArgs[2]
       if len(theArgs) > 3:
         self.gitHash = theArgs[3]
     else:
-      endExec("First argument must be either 'branch', 'pr' or 'tag'")
+      endExec("First argument must be either 'branch', 'pr', 'merge' or 'tag'")
 
     mirrorPath = path.join(self.repoPath,"SixTrack.git")
     workingDir = getcwd()
-    chdir(mirrorPath)
+    chdir(self.repoPath)
     if path.isdir(mirrorPath):
+      chdir(mirrorPath)
       logger.info("Updating the SixTrack repository ...")
       stdOut, stdErr, exCode = sysCall("git remote update")
     else:
       logger.info("Cloning the SixTrack repository")
-      chdir(self.repoPath)
       exCode = system("git clone https://github.com/SixTrack/SixTrack.git --mirror")
       if exCode != 0:
         endExec("Failed to clone SixTrack repository")
       chdir(mirrorPath)
 
     if self.gitMode == "branch":
-      stdOut, stdErr, exCode = sysCall("git show-ref refs/heads/%s" % self.gitTarget)
-      if exCode == 0:
-        logger.info("Found: %s" % stdOut.strip())
-        self.gitHash = stdOut[0:40]
-        logger.debug("Hash: '%s'" % self.gitHash)
-      else:
-        endExec("Unknown branch '%s'" % self.gitTarget)
+      self.gitRef = "refs/heads/%s" % self.gitTarget
     elif self.gitMode == "pr":
-      stdOut, stdErr, exCode = sysCall("git show-ref refs/pull/%s/head" % self.gitTarget)
-      if exCode == 0:
-        logger.info("Found: %s" % stdOut.strip())
-        self.gitHash = stdOut[0:40]
-        logger.debug("Hash: '%s'" % self.gitHash)
-      else:
-        endExec("Unknown pull request '%s'" % self.gitTarget)
+      self.gitRef = "refs/pull/%s/head" % self.gitTarget
+    elif self.gitMode == "merge":
+      self.gitRef = "refs/pull/%s/merge" % self.gitTarget
     elif self.gitMode == "tag":
-      stdOut, stdErr, exCode = sysCall("git show-ref refs/tags/%s" % self.gitTarget)
-      if exCode == 0:
-        logger.info("Found: %s" % stdOut.strip())
-        self.gitHash = stdOut[0:40]
-        logger.debug("Hash: '%s'" % self.gitHash)
-      else:
-        endExec("Unknown tag '%s'" % self.gitTarget)
-    
+      self.gitRef = "refs/tags/%s" % self.gitTarget
+
+    stdOut, stdErr, exCode = sysCall("git show-ref %s" % self.gitRef)
+    if exCode == 0:
+      logger.info("Found: %s" % stdOut.strip())
+      self.gitHash = stdOut[0:40]
+    else:
+      endExec("Unknown ref '%s'" % self.gitRef)
+      return
+
+    stdOut, stdErr, exCode = sysCall("git log --format=%%B -n 1 %s | head -n1" % self.gitHash)
+    self.gitMsg = stdOut.strip()
+    logger.info("MSG:  '%s'" % self.gitMsg)
+
     chdir(workingDir)
 
     return
