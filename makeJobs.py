@@ -35,7 +35,7 @@ theWorker.setLibDependencies(["naff"])
 ##
 
 theWorker.addJob("Standard Single", "gfortran", "Release", "-64BITM -CRLIBM 32BITM",  None)
-theWorker.addJob("Standard Double", "gfortran", "Release", "",                        "-E prob")
+theWorker.addJob("Standard Double", "gfortran", "Release", "",                        "-L fast")
 theWorker.addJob("Standard Quad",   "gfortran", "Release", "-64BITM -CRLIBM 128BITM", None)
 
 theWorker.writeJobFiles()
