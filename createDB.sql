@@ -4,6 +4,7 @@ CREATE TABLE `builds` (
   `StartTime` varchar(45) DEFAULT NULL,
   `FinishTime` datetime DEFAULT NULL,
   `Compiler` varchar(20) DEFAULT NULL,
+  `CompilerVersion` varchar(10) DEFAULT NULL,
   `Type` varchar(20) DEFAULT NULL,
   `Flags` varchar(255) DEFAULT NULL,
   `KernelRelease` varchar(45) DEFAULT NULL,
