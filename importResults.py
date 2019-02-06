@@ -21,11 +21,15 @@ theConfig = Config(
   logLevel = "debug"
 )
 
+# Get the pasword from a file
+with open("/scratch/SixTrackTestBuilds/dbPassword.txt","r") as pwFile:
+  passWord = pwFile.read().strip()
+
 # Options are those taken by the PyMySQL connector
 dbConfig = {
   "host":     "localhost",
   "user":     "sttb_master",
-  "password": "xEstti29aBH4UY1jKCnF",
+  "password": passWord,
   "database": "sixtrack_build",
   "port":     3306
 }
