@@ -120,15 +120,6 @@ class BuildJob():
 
     return
 
-  def setTest(self, testFlags):
-    self.testFlags = testFlags.strip()
-    self.buildFlags.append("BUILD_TESTING")
-    self.buildOpt  = self._makeOptString(self.buildFlags, self.buildCompiler, self.buildType)
-    self.buildKey  = self._makeKey(self.buildOpt)
-    self.buildName = "Build_"+self.buildKey
-    logger.info("Added tests '%s' for job '%s'" % (self.testFlags,self.buildOpt))
-    return
-
   def writeJobFile(self, workerName, jobDir, jobNo, nJobs):
 
     shName = "Step_%04d_Build_%s.sh" % (jobNo, self.buildKey)
@@ -187,11 +178,6 @@ class BuildJob():
       shFile.write("echo \"## END BuildLog\" >> $BLOG\n")
 
     return
-
-  def checkKey(self, buildFlags, buildCompiler, buildType):
-    tmpOpt = self._makeOptString(buildFlags.split(), buildCompiler, buildType)
-    tmpKey = self._makeKey(tmpOpt)
-    return tmpKey == self.buildKey
 
   def _makeOptString(self, buildFlags, compExec, buildType):
     return ("%s %s %s" % (compExec, buildType.strip(), " ".join(buildFlags))).strip()

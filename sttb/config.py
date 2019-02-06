@@ -142,7 +142,7 @@ class Config():
 
     logger.setLevel(logLevel)
 
-    logger.info("Logger initialised")
+    logger.debug("Logger initialised")
 
     return
 
