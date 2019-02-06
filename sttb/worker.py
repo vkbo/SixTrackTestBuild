@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*
 """SixTrack Test Builds
 
-  SixTrack Tools - SixTrack Test Builds
- =======================================
+  SixTrack Test Builds - Worker and BuildJob Classes
+ ====================================================
   By: Veronica Berglyd Olsen
       CERN (BE-ABP-HSS)
       Geneva, Switzerland
@@ -54,17 +54,9 @@ class Worker():
     if buildType not in ["Release","Debug"]:
       logger.warning("Skipping job with unknown build type %s for flags %s" % (buildType, buildFlags))
       return
-    theJob = BuildJob(self.theConfig, jobName, buildCompiler, buildType, buildFlags, testFlags)
+    cVersion = self.theCompilers.getVersion(buildCompiler)
+    theJob   = BuildJob(self.theConfig, jobName, buildCompiler, cVersion, buildType, buildFlags, testFlags)
     self.theJobs.append(theJob)
-    return
-
-  def addTest(self, testFlags, buildFlags, withCompilers=[], buildTypes=["Release"]):
-    for buildCompiler in withCompilers:
-      for buildType in buildTypes:
-        for aJob in self.theJobs:
-          if aJob.checkKey(buildFlags, buildCompiler, buildType):
-            aJob.setTest(testFlags)
-            continue
     return
 
   def writeJobFiles(self):
@@ -95,14 +87,15 @@ class Worker():
       aJob.writeJobFile(self.workerName, workDir, jobNo, len(self.theJobs))
     return
 
-# END Class JobsWrapper
+# END Class Worker
 
 class BuildJob():
 
-  def __init__(self, theConfig, jobName, buildCompiler, buildType, buildFlags, testFlags):
+  def __init__(self, theConfig, jobName, buildCompiler, compVersion, buildType, buildFlags, testFlags):
 
     self.jobName       = jobName.strip()
     self.buildCompiler = buildCompiler
+    self.compVersion   = compVersion
     self.buildType     = buildType
     self.buildFlags    = sorted(buildFlags.split())
     self.testFlags     = testFlags
@@ -162,6 +155,7 @@ class BuildJob():
       shFile.write("echo \"# BuildCompiler   : %s\" >> $BLOG\n" % self.buildCompiler)
       shFile.write("echo \"# BuildType       : %s\" >> $BLOG\n" % self.buildType)
       shFile.write("echo \"# BuildFlags      : %s\" >> $BLOG\n" % (" ".join(self.buildFlags)).strip())
+      shFile.write("echo \"# CompilerVersion : %s\" >> $BLOG\n" % self.compVersion)
       shFile.write("echo \"# GitRef          : %s\" >> $BLOG\n" % self.gitRef)
       shFile.write("echo \"# GitHash         : %s\" >> $BLOG\n" % self.gitHash)
       shFile.write("echo \"# GitTime         : %s\" >> $BLOG\n" % self.gitTime)

@@ -19,7 +19,7 @@ def endExec(errMsg = None):
     exit(0)
   else:
     logger.error(errMsg)
-    logger.critical("Exiting with status 1")
+    logger.critical("Exited with error(s)")
     exit(1)
 
 # Wrapper function for system calls

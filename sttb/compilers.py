@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*
 """SixTrack Test Builds
 
-  SixTrack Tools - SixTrack Test Builds
+  SixTrack Test Builds - Compiler Class
  =======================================
   By: Veronica Berglyd Olsen
       CERN (BE-ABP-HSS)
@@ -45,5 +45,7 @@ class Compilers():
       return self.theCompilers[compilerName]["compilerOK"]
     return False
 
+  def getVersion(self, compilerName):
+    return self.theCompilers[compilerName]["compilerVersion"]
 
 # END Class Compiler
