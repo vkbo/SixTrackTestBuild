@@ -77,9 +77,11 @@ class Worker():
     shPath = path.join(workDir, shName)
     with open(shPath, mode="w+") as shFile:
       shFile.write("#!/bin/bash\n")
+      shFile.write("cd $STTB_REPO\n")
+      shFile.write("git remote update\n")
       shFile.write("if [ ! -d \"$STTB_WDIR/%s\" ]; then\n" % self.gitHash)
       shFile.write("  mkdir $STTB_WDIR/%s\n" % self.gitHash)
-      shFile.write("  git clone $STTB_REPO .\n")
+      shFile.write("  git clone $STTB_REPO $STTB_WDIR/%s\n" % self.gitHash)
       shFile.write("fi\n")
       shFile.write("cd $STTB_WDIR/%s\n" % self.gitHash)
       shFile.write("git fetch origin %s:tmpbranch\n" % self.gitRef)
@@ -90,7 +92,7 @@ class Worker():
     jobNo = 0
     for aJob in self.theJobs:
       jobNo += 1
-      aJob.writeJobFile(workDir, jobNo, len(self.theJobs))
+      aJob.writeJobFile(self.workerName, workDir, jobNo, len(self.theJobs))
     return
 
 # END Class JobsWrapper
@@ -106,6 +108,7 @@ class BuildJob():
     self.testFlags     = testFlags
 
     self.gitHash       = theConfig.gitHash
+    self.gitTime       = theConfig.gitTime
     self.gitMsg        = theConfig.gitMsg
     self.gitRef        = theConfig.gitRef
     self.jobsDir       = theConfig.jobsDir
@@ -133,14 +136,15 @@ class BuildJob():
     logger.info("Added tests '%s' for job '%s'" % (self.testFlags,self.buildOpt))
     return
 
-  def writeJobFile(self, jobDir, jobNo, nJobs):
+  def writeJobFile(self, workerName, jobDir, jobNo, nJobs):
 
     shName = "Step_%04d_Build_%s.sh" % (jobNo, self.buildKey)
     bldLog = "Build_%s.log" % self.buildKey
-    tstLog = "Test_%s.log" % self.buildKey
+    tstLog = "Test_%s.xml" % self.buildKey
     shPath = path.join(jobDir, shName)
     with open(shPath, mode="w+") as shFile:
       shFile.write("#!/bin/bash\n")
+      shFile.write("\n")
       shFile.write("BDIR=%s\n" % self.buildName)
       shFile.write("WDIR=$STTB_WDIR/%s\n" % self.gitHash)
       shFile.write("BLOG=$(pwd)/%s\n" % bldLog)
@@ -153,10 +157,16 @@ class BuildJob():
       shFile.write("mkdir $BDIR\n")
       shFile.write("cd    $BDIR\n")
       shFile.write("\n")
-      shFile.write("echo \"# BuildName       : %s\"  > $BLOG\n" % self.buildName)
+      shFile.write("echo \"## BEGIN BuildLog\" > $BLOG\n")
+      shFile.write("echo \"# BuildName       : %s\" >> $BLOG\n" % self.buildName)
+      shFile.write("echo \"# BuildCompiler   : %s\" >> $BLOG\n" % self.buildCompiler)
+      shFile.write("echo \"# BuildType       : %s\" >> $BLOG\n" % self.buildType)
+      shFile.write("echo \"# BuildFlags      : %s\" >> $BLOG\n" % (" ".join(self.buildFlags)).strip())
       shFile.write("echo \"# GitRef          : %s\" >> $BLOG\n" % self.gitRef)
       shFile.write("echo \"# GitHash         : %s\" >> $BLOG\n" % self.gitHash)
+      shFile.write("echo \"# GitTime         : %s\" >> $BLOG\n" % self.gitTime)
       shFile.write("echo \"# GitMessage      : %s\" >> $BLOG\n" % self.gitMsg)
+      shFile.write("echo \"# WorkerName      : %s\" >> $BLOG\n" % workerName)
       shFile.write("echo \"# WorkerHost      : $(hostname | head -n1)\" >> $BLOG\n")
       shFile.write("echo \"# WorkerOS        : $(uname -o)\" >> $BLOG\n")
       shFile.write("echo \"# WorkerArch      : $(uname -m)\" >> $BLOG\n")
@@ -172,13 +182,15 @@ class BuildJob():
       if self.testFlags is not None:
         shFile.write("\n")
         shFile.write("echo \"# TestStart       : $(date +%s%N)\" >> $BLOG\n")
-        shFile.write("ctest %s -j$STTB_TCPU | tee $TLOG\n" % self.testFlags)
+        shFile.write("ctest %s -T Test -j$STTB_TCPU | tee $TLOG\n" % self.testFlags)
         shFile.write("echo \"# TestStatus      : $?\" >> $BLOG\n")
         shFile.write("echo \"# TestEnd         : $(date +%s%N)\" >> $BLOG\n")
-        
+        shFile.write("cp Testing/*/Test.xml $TLOG\n")
+
       shFile.write("\n")
       shFile.write("cd $WDIR\n")
       shFile.write("rm -rf $BDIR\n")
+      shFile.write("echo \"## END BuildLog\" >> $BLOG\n")
 
     return
 

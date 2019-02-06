@@ -32,6 +32,7 @@ class Config():
     self.gitMode   = None
     self.gitTarget = None
     self.gitHash   = None
+    self.gitTime   = None
     self.gitRef    = None
     self.gitMsg    = ""
 
@@ -89,6 +90,10 @@ class Config():
     else:
       endExec("Unknown ref '%s'" % self.gitRef)
       return
+
+    stdOut, stdErr, exCode = sysCall("git show -s --format=%%ci %s" % self.gitHash)
+    self.gitTime = stdOut.strip()
+    logger.info("TIME: '%s'" % self.gitTime)
 
     stdOut, stdErr, exCode = sysCall("git log --format=%%B -n 1 %s | head -n1" % self.gitHash)
     self.gitMsg = stdOut.strip()
