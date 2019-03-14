@@ -11,7 +11,8 @@
 import logging
 import pymysql.cursors
 
-from os import path, mkdir, listdir
+from os       import path, mkdir, listdir
+from datetime import datetime
 
 from .functions import *
 
@@ -62,29 +63,29 @@ class BuildsDB():
 
   def _importBuildFile(self, workerName, buildFile, doSave=False):
     theData = {
-      "BuildName"       : "Unknown",
-      "BuildCompiler"   : "Unknown",
-      "BuildType"       : "Unknown",
-      "BuildFlags"      : "Unknown",
-      "CompilerVersion" : "Unknown",
-      "GitRef"          : "Unknown",
-      "GitHash"         : "Unknown",
-      "GitTime"         : "Unknown",
-      "GitMessage"      : "Unknown",
-      "WorkerName"      : "Unknown",
-      "WorkerHost"      : "Unknown",
-      "WorkerOS"        : "Unknown",
-      "WorkerArch"      : "Unknown",
-      "KernelName"      : "Unknown",
-      "KernelRelease"   : "Unknown",
-      "KernelVersion"   : "Unknown",
-      "BuildStart"      : "0",
-      "CMakeStatus"     : "-1",
-      "MakeStatus"      : "-1",
-      "BuildEnd"        : "0",
-      "TestStart"       : "0",
-      "TestStatus"      : "-1",
-      "TestEnd"         : "0",
+      "BuildName"       : None,
+      "BuildCompiler"   : None,
+      "BuildType"       : None,
+      "BuildFlags"      : None,
+      "CompilerVersion" : None,
+      "GitRef"          : None,
+      "GitHash"         : None,
+      "GitTime"         : None,
+      "GitMessage"      : None,
+      "WorkerName"      : None,
+      "WorkerHost"      : None,
+      "WorkerOS"        : None,
+      "WorkerArch"      : None,
+      "KernelName"      : None,
+      "KernelRelease"   : None,
+      "KernelVersion"   : None,
+      "BuildStart"      : None,
+      "CMakeStatus"     : None,
+      "MakeStatus"      : None,
+      "BuildEnd"        : None,
+      "TestStart"       : None,
+      "TestStatus"      : None,
+      "TestEnd"         : None,
     }
     fileName = path.basename(buildFile)
     logger.info("%s: Importing file '%s'" % (workerName, fileName))
@@ -111,11 +112,177 @@ class BuildsDB():
         else:
           logger.warning("%s: Unknown variable '%s'" % (workerName, lnName))
       if doSave:
-        self._dbWriteBuildData(workerName, theData)
+        return self._dbWriteBuildData(workerName, theData)
 
     return True
 
   def _dbWriteBuildData(self, workerName, theData):
+
+    repoID = self._dbRepository(
+      theData["GitHash"],
+      theData["GitRef"],
+      theData["GitTime"],
+      theData["GitMessage"]
+    )
+    if repoID is None:
+      logger.error("Failed to save repository information")
+      return False
+    else:
+      logger.info("Saved Git Hash '%s' with RepoID %d" % (theData["GitHash"],repoID))
+
+    workerID = self._dbWorker(
+      theData["WorkerName"],
+      theData["WorkerHost"],
+      theData["WorkerOS"],
+      theData["WorkerArch"],
+      fromUnixTime(int(theData["BuildStart"]),1e9)
+    )
+    if workerID is None:
+      logger.error("Failed to save worker information")
+      return False
+    else:
+      logger.info("Saved Worker '%s' with WorkerID %d" % (theData["WorkerName"],workerID))
+
+    buildID = self._dbBuilds(theData, repoID, workerID)
+    if buildID is None:
+      logger.error("Failed to save build information")
+      return False
+    else:
+      logger.info("Saved Build '%s' with BuildID %d" % (theData["BuildName"],buildID))
+
     return True
+
+  def _dbBuilds(self, theData, repoID, workerID):
+
+    # Check the Values
+    buildName = theData["BuildName"]
+    if len(buildName) != 38:
+      logger.error("Invalid build name '%s'" % buildName)
+      return None
+
+    # Check if the hash is already saved
+    qSelect = "SELECT ID FROM builds WHERE Name = %s"
+    self.dbCursor.execute(qSelect, (buildName,))
+    logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    theRes = self.dbCursor.fetchone()
+
+    if theRes is not None:
+      logger.error("Build '%s' already saved" % buildName)
+      return None
+
+    startTime = fromUnixTime(int(theData["BuildStart"]),1e9)
+    buildTime = int((int(theData["BuildEnd"])-int(theData["BuildStart"]))/1e6)
+    if theData["TestEnd"] is None:
+      finishTime = fromUnixTime(int(theData["BuildEnd"]),1e9)
+      testTime   = 0
+    else:
+      finishTime = fromUnixTime(int(theData["TestEnd"]),1e9)
+      testTime   = int((int(theData["TestEnd"])-int(theData["TestStart"]))/1e6)
+
+    qInsert = ("INSERT INTO builds ("
+        "Name, RepoID, WorkerID, StartTime, FinishTime, "
+        "Compiler, CompilerVersion, Type, Flags, "
+        "KernelRelease, KernelVersion, "
+        "CMakeStatus, MakeStatus, TestStatus, "
+        "BuildTime, TestTime, "
+        "TestCount, TestPass, TestFail, TestNotRun"
+      ") VALUES ("
+        "%s, %s, %s, %s, %s, "
+        "%s, %s, %s, %s, "
+        "%s, %s, "
+        "%s, %s, %s, "
+        "%s, %s, "
+        "%s, %s, %s, %s"
+      ")"
+    )
+    self.dbCursor.execute(qInsert,(
+      buildName, repoID, workerID, startTime, finishTime,
+      theData["BuildCompiler"], theData["CompilerVersion"],
+      theData["BuildType"],     theData["BuildFlags"],
+      theData["KernelRelease"], theData["KernelVersion"],
+      theData["CMakeStatus"],   theData["MakeStatus"],     theData["TestStatus"],
+      buildTime, testTime,
+      0,0,0,0
+    ))
+    logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    
+
+    return 0
+
+  def _dbRepository(self, gitHash, gitRef, gitTime, gitMessage):
+
+    # Check the Values
+    if gitHash is None:
+      logger.error("No git hash provided.")
+      return None
+    elif len(gitHash) != 40:
+      logger.error("Invalid git hash provided '%s'." % gitHash)
+      return None
+
+    if len(gitTime) > 19:
+      gitTime = gitTime[0:19]
+
+    # Check if the hash is already saved
+    qSelect = "SELECT ID FROM repository WHERE GitHash = %s"
+    self.dbCursor.execute(qSelect, (gitHash,))
+    logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    theRes = self.dbCursor.fetchone()
+
+    if theRes is None:
+      qInsert = ("INSERT INTO repository ("
+          "GitHash, GitRef, GitTime, GitMessage"
+        ") VALUES ("
+          "%s, %s, %s, %s"
+        ")"
+      )
+      self.dbCursor.execute(qInsert,(gitHash, gitRef, gitTime, gitMessage))
+      logger.debug("SQL: %s" % self.dbCursor._last_executed)
+      self.dbConn.commit()
+      return self.dbCursor.lastrowid
+
+    else:
+      return theRes["ID"]
+
+  def _dbWorker(self, workerName, workerHost, workerOS, workerArch, lastSeen):
+
+    # Check the Values
+    if workerName is None or len(workerName) == 0:
+      logger.error("No worker name provided.")
+      return None
+
+    qSelect = "SELECT * FROM workers WHERE Name = %s"
+    self.dbCursor.execute(qSelect, (workerName,))
+    logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    theRes = self.dbCursor.fetchone()
+
+    if theRes is None:
+      qInsert = ("INSERT INTO workers ("
+          "Name, HostName, OS, Architecture, LastSeen"
+        ") VALUES ("
+          "%s, %s, %s, %s, %s"
+        ")"
+      )
+      self.dbCursor.execute(qInsert,(workerName, workerHost, workerOS, workerArch, lastSeen))
+      logger.debug("SQL: %s" % self.dbCursor._last_executed)
+      self.dbConn.commit()
+      return self.dbCursor.lastrowid
+
+    else:
+      if theRes["OS"] != workerOS:
+        logger.error("OS for worker '%s' does not match the database '%s' != '%s'" % (
+          workerName, workerOS, theRes["OS"]
+        ))
+        return None
+      if theRes["Architecture"] != workerArch:
+        logger.error("Architecture for worker '%s' does not match the database '%s' != '%s'" % (
+          workerName, workerArch, theRes["Architecture"]
+        ))
+        return None
+      qUpdate = "UPDATE workers SET LastSeen = %s WHERE ID = %s"
+      self.dbCursor.execute(qUpdate,(lastSeen,theRes["ID"]))
+      logger.debug("SQL: %s" % self.dbCursor._last_executed)
+      self.dbConn.commit()
+
+      return theRes["ID"]
 
 # END Class BuildsDB
