@@ -11,6 +11,8 @@
 import logging
 import subprocess
 
+from datetime import datetime
+
 logger = logging.getLogger("sttb-logger")
 
 def endExec(errMsg = None):
@@ -80,3 +82,6 @@ def ctestReturn(stdOut, stdErr):
     if atFail:
       tFailed = tFailed[:-2]
   return tFailed
+
+def fromUnixTime(theTime, baseTime):
+  return datetime.fromtimestamp(int(theTime/baseTime)).strftime("%Y-%m-%d %H:%M:%S")
