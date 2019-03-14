@@ -11,10 +11,11 @@
 import logging
 import pymysql.cursors
 
-from os       import path, mkdir, listdir
+from os       import path, mkdir, listdir, rename, rmdir
 from datetime import datetime
 
 from .functions import *
+from .testxml   import TestXML
 
 logger = logging.getLogger("sttb-logger")
 
@@ -24,6 +25,7 @@ class BuildsDB():
 
     self.theConfig = theConfig
     self.jobsDir   = self.theConfig.jobsDir
+    self.archDir   = archiveDir
     self.dbConfig  = dbConfig
     self.dbConn    = None
     self.dbCursor  = None
@@ -45,17 +47,35 @@ class BuildsDB():
 
     workDir = path.join(self.jobsDir,workerName)
     logger.info("%s: Scanning jobs directory" % workerName)
-    for jobEntry in listdir(workDir):
+    for jobEntry in sorted(listdir(workDir)):
       jobEntryPath = path.join(workDir,jobEntry)
       if path.isdir(jobEntryPath) and len(jobEntry) == 40:
         logger.info("%s: Scanning entry '%s'" % (workerName,jobEntry))
-        for jobFile in listdir(jobEntryPath):
+        for jobFile in sorted(listdir(jobEntryPath)):
           jobFilePath = path.join(jobEntryPath,jobFile)
           if path.isfile(jobFilePath) and len(jobFile) == 42 and jobFile[:6] == "Build_":
             logger.info("%s: Found build file '%s'" % (workerName,jobFile))
-            self._importBuildFile(workerName, jobFilePath, buildLog)
+            iStat = self._importBuildFile(workerName, jobFilePath, buildLog)
+            if iStat and self.archDir is not None:
+              archDir = path.join(self.archDir,jobEntry)
+              if not path.isdir(archDir):
+                mkdir(archDir)
+              rename(jobFilePath, path.join(archDir,jobFile))
+              logger.info("%s: Archived build file '%s'" % (workerName,jobFile))
+          elif path.isfile(jobFilePath) and len(jobFile) == 41 and jobFile[:5] == "Test_":
+            logger.info("%s: Found test file '%s'" % (workerName,jobFile))
+            iStat = self._importTestFile(workerName, jobFilePath, testLog)
+            if iStat and self.archDir is not None:
+              archDir = path.join(self.archDir,jobEntry)
+              if not path.isdir(archDir):
+                mkdir(archDir)
+              rename(jobFilePath, path.join(archDir,jobFile))
+              logger.info("%s: Archived test file '%s'" % (workerName,jobFile))
           else:
             logger.debug("%s: Skipping file '%s'" % (workerName,jobFile))
+        if len(listdir(jobEntryPath)) == 0:
+          logger.info("Deleting empty folder %s" % jobEntry)
+          rmdir(jobEntryPath)
       else:
         logger.info("%s: Skipping entry '%s'" % (workerName,jobEntry))
 
@@ -116,6 +136,53 @@ class BuildsDB():
 
     return True
 
+  def _importTestFile(self, workerName, testFile, doSave=False):
+
+    theTests  = TestXML(testFile)
+    fileName  = path.basename(testFile)
+    buildName = "Build_%s" % fileName[5:37]
+
+    # Find the BuildID
+    qSelect = "SELECT ID FROM builds WHERE Name = %s"
+    self.dbCursor.execute(qSelect, (buildName,))
+    logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    theRes = self.dbCursor.fetchone()
+
+    if theRes is None:
+      logger.error("Unknown build name '%s'" % buildName)
+      return False
+
+    buildID = theRes["ID"]
+    nT, nP, nF = theTests.getTestCount()
+    qUpdate = "UPDATE builds SET TestCount = %s, TestPass = %s, TestFail = %s, TestNotRun = %s WHERE ID = %s"
+    self.dbCursor.execute(qUpdate,(nT,nP,nF,nT-nP-nF,buildID))
+    logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    self.dbConn.commit()
+
+    qDelete = "DELETE FROM tests WHERE BuildID = %s"
+    self.dbCursor.execute(qDelete,(buildID,))
+    logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    self.dbConn.commit()
+
+    for testName in theTests.testRes.keys():
+      if theTests.testRes[testName]["Status"] == "passed":
+        tStatus = 0
+      elif theTests.testRes[testName]["Status"] == "failed":
+        tStatus = 1
+      else:
+        tStatus = -1
+      qInsert = ("INSERT INTO tests ("
+          "Name, BuildID, Status, RunTime"
+        ") VALUES ("
+          "%s, %s, %s, %s"
+        ")"
+      )
+      self.dbCursor.execute(qInsert,(testName, buildID, tStatus, theTests.testRes[testName]["RunTime"]))
+      logger.debug("SQL: %s" % self.dbCursor._last_executed)
+    self.dbConn.commit()
+
+    return True
+
   def _dbWriteBuildData(self, workerName, theData):
 
     repoID = self._dbRepository(
@@ -160,7 +227,7 @@ class BuildsDB():
       logger.error("Invalid build name '%s'" % buildName)
       return None
 
-    # Check if the hash is already saved
+    # Check if the build is already saved
     qSelect = "SELECT ID FROM builds WHERE Name = %s"
     self.dbCursor.execute(qSelect, (buildName,))
     logger.debug("SQL: %s" % self.dbCursor._last_executed)
@@ -205,9 +272,8 @@ class BuildsDB():
       0,0,0,0
     ))
     logger.debug("SQL: %s" % self.dbCursor._last_executed)
-    
-
-    return 0
+    self.dbConn.commit()
+    return self.dbCursor.lastrowid
 
   def _dbRepository(self, gitHash, gitRef, gitTime, gitMessage):
 

@@ -167,7 +167,7 @@ class BuildJob():
       if self.testFlags is not None:
         shFile.write("\n")
         shFile.write("echo \"# TestStart       : $(date +%s%N)\" >> $BLOG\n")
-        shFile.write("ctest %s -T Test -j$STTB_TCPU | tee $TLOG\n" % self.testFlags)
+        shFile.write("ctest %s -T Test -j$STTB_TCPU\n" % self.testFlags)
         shFile.write("echo \"# TestStatus      : $?\" >> $BLOG\n")
         shFile.write("echo \"# TestEnd         : $(date +%s%N)\" >> $BLOG\n")
         shFile.write("cp Testing/*/Test.xml $TLOG\n")
