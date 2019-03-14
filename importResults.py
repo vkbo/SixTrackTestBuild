@@ -36,4 +36,5 @@ dbConfig = {
 
 theDB = BuildsDB(theConfig, dbConfig, archiveDir="/scratch/SixTrackTestBuilds/archive")
 
+# Import the workers one by one
 theDB.importResults(workerName="Debian10", buildLog=True, testLog=False)
