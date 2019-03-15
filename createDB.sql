@@ -3,6 +3,7 @@ CREATE TABLE `builds` (
   `Name` varchar(38) NOT NULL,
   `RepoID` int(11) NOT NULL,
   `WorkerID` int(11) NOT NULL,
+  `Description` varchar(64) DEFAULT NULL,
   `StartTime` datetime DEFAULT NULL,
   `FinishTime` datetime DEFAULT NULL,
   `Compiler` varchar(20) DEFAULT NULL,
