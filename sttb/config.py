@@ -91,7 +91,7 @@ class Config():
       endExec("Unknown ref '%s'" % self.gitRef)
       return
 
-    stdOut, stdErr, exCode = sysCall("git show -s --format=%%ci %s" % self.gitHash)
+    stdOut, stdErr, exCode = sysCall("git show -s --format=%%ci %s | tail -n1" % self.gitHash)
     self.gitTime = stdOut.strip()
     logger.info("TIME: '%s'" % self.gitTime)
 
