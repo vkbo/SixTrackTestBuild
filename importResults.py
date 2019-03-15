@@ -18,7 +18,7 @@ logger = logging.getLogger("sttb-logger")
 theConfig = Config(
   workDir  = "/scratch/SixTrackTestBuilds",
   jobsDir  = "/scratch/SixTrackTestBuilds/sync/jobs",
-  logLevel = "debug"
+  logLevel = "info"
 )
 
 # Get the pasword from a file
@@ -37,4 +37,6 @@ dbConfig = {
 theDB = BuildsDB(theConfig, dbConfig, archiveDir="/scratch/SixTrackTestBuilds/archive")
 
 # Import the workers one by one
-theDB.importResults(workerName="Debian10", buildLog=True, testLog=False)
+theDB.importResults(workerName="Debian10",      buildLog=True, testLog=True)
+theDB.importResults(workerName="Win10_MINGW32", buildLog=True, testLog=True)
+theDB.importResults(workerName="Win10_MINGW64", buildLog=True, testLog=True)
