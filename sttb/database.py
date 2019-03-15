@@ -83,6 +83,7 @@ class BuildsDB():
 
   def _importBuildFile(self, workerName, buildFile, doSave=False):
     theData = {
+      "JobName"         : None,
       "BuildName"       : None,
       "BuildCompiler"   : None,
       "BuildType"       : None,
@@ -233,10 +234,6 @@ class BuildsDB():
     logger.debug("SQL: %s" % self.dbCursor._last_executed)
     theRes = self.dbCursor.fetchone()
 
-    if theRes is not None:
-      logger.error("Build '%s' already saved" % buildName)
-      return None
-
     startTime = fromUnixTime(int(theData["BuildStart"]),1e9)
     buildTime = int((int(theData["BuildEnd"])-int(theData["BuildStart"]))/1e6)
     if theData["TestEnd"] is None:
@@ -246,34 +243,59 @@ class BuildsDB():
       finishTime = fromUnixTime(int(theData["TestEnd"]),1e9)
       testTime   = int((int(theData["TestEnd"])-int(theData["TestStart"]))/1e6)
 
-    qInsert = ("INSERT INTO builds ("
-        "Name, RepoID, WorkerID, StartTime, FinishTime, "
-        "Compiler, CompilerVersion, Type, Flags, "
-        "KernelRelease, KernelVersion, "
-        "CMakeStatus, MakeStatus, TestStatus, "
-        "BuildTime, TestTime, "
-        "TestCount, TestPass, TestFail, TestNotRun"
-      ") VALUES ("
-        "%s, %s, %s, %s, %s, "
-        "%s, %s, %s, %s, "
-        "%s, %s, "
-        "%s, %s, %s, "
-        "%s, %s, "
-        "%s, %s, %s, %s"
-      ")"
-    )
-    self.dbCursor.execute(qInsert,(
-      buildName, repoID, workerID, startTime, finishTime,
-      theData["BuildCompiler"], theData["CompilerVersion"],
-      theData["BuildType"],     theData["BuildFlags"],
-      theData["KernelRelease"], theData["KernelVersion"],
-      theData["CMakeStatus"],   theData["MakeStatus"],     theData["TestStatus"],
-      buildTime, testTime,
-      0,0,0,0
-    ))
-    logger.debug("SQL: %s" % self.dbCursor._last_executed)
-    self.dbConn.commit()
-    return self.dbCursor.lastrowid
+    if theRes is None:
+      qInsert = ("INSERT INTO builds ("
+          "Name, RepoID, WorkerID, StartTime, FinishTime, "
+          "Description, Compiler, CompilerVersion, Type, Flags, "
+          "KernelRelease, KernelVersion, "
+          "CMakeStatus, MakeStatus, TestStatus, "
+          "BuildTime, TestTime, "
+          "TestCount, TestPass, TestFail, TestNotRun"
+        ") VALUES ("
+          "%s, %s, %s, %s, %s, "
+          "%s, %s, %s, %s, %s, "
+          "%s, %s, "
+          "%s, %s, %s, "
+          "%s, %s, "
+          "%s, %s, %s, %s"
+        ")"
+      )
+      self.dbCursor.execute(qInsert,(
+        buildName, repoID, workerID, startTime, finishTime,
+        theData["JobName"],         theData["BuildCompiler"],
+        theData["CompilerVersion"], theData["BuildType"],
+        theData["BuildFlags"],      theData["KernelRelease"],
+        theData["KernelVersion"],   theData["CMakeStatus"],
+        theData["MakeStatus"],      theData["TestStatus"],
+        buildTime, testTime,
+        0,0,0,0
+      ))
+      logger.debug("SQL: %s" % self.dbCursor._last_executed)
+      self.dbConn.commit()
+      return self.dbCursor.lastrowid
+
+    else:
+      logger.info("Build '%s' already saved, overwriting" % buildName)
+      qUpdate = ("UPDATE builds SET "
+          "RepoID = %s, WorkerID = %s, StartTime = %s, FinishTime = %s, "
+          "Description = %s, Compiler = %s, CompilerVersion = %s, Type = %s, Flags = %s, "
+          "KernelRelease = %s, KernelVersion = %s, "
+          "CMakeStatus = %s, MakeStatus = %s, TestStatus = %s, "
+          "BuildTime = %s, TestTime = %s "
+          "WHERE ID = %s"
+      )
+      self.dbCursor.execute(qUpdate,(
+        repoID, workerID, startTime, finishTime,
+        theData["JobName"],         theData["BuildCompiler"],
+        theData["CompilerVersion"], theData["BuildType"],
+        theData["BuildFlags"],      theData["KernelRelease"],
+        theData["KernelVersion"],   theData["CMakeStatus"],
+        theData["MakeStatus"],      theData["TestStatus"],
+        buildTime, testTime, theRes["ID"]
+      ))
+      logger.debug("SQL: %s" % self.dbCursor._last_executed)
+      self.dbConn.commit()
+      return theRes["ID"]
 
   def _dbRepository(self, gitHash, gitRef, gitTime, gitMessage):
 
