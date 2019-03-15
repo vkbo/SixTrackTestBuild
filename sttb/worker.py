@@ -55,7 +55,7 @@ class Worker():
       logger.warning("Skipping job with unknown build type %s for flags %s" % (buildType, buildFlags))
       return
     cVersion = self.theCompilers.getVersion(buildCompiler)
-    theJob   = BuildJob(self.theConfig, jobName, buildCompiler, cVersion, buildType, buildFlags, testFlags)
+    theJob   = BuildJob(self.theConfig, self.workerName, jobName, buildCompiler, cVersion, buildType, buildFlags, testFlags)
     self.theJobs.append(theJob)
     return
 
@@ -65,7 +65,9 @@ class Worker():
     if not path.isdir(workDir):
       mkdir(workDir)
 
-    shName = "Step_0000_Checkout.sh"
+    jobNo = 1
+
+    shName = "Step_%04d_Checkout.sh" % jobNo
     shPath = path.join(workDir, shName)
     with open(shPath, mode="w+") as shFile:
       shFile.write("#!/bin/bash\n")
@@ -81,19 +83,28 @@ class Worker():
       for libDep in self.libDepend:
         shFile.write("./buildLibraries.sh %s\n" % libDep)
 
-    jobNo = 0
     for aJob in self.theJobs:
       jobNo += 1
-      aJob.writeJobFile(self.workerName, workDir, jobNo, len(self.theJobs))
+      aJob.writeJobFile(workDir, jobNo, len(self.theJobs))
+
+    jobNo += 1
+    shName = "Step_%04d_Cleanup.sh" % jobNo
+    shPath = path.join(workDir, shName)
+    with open(shPath, mode="w+") as shFile:
+      shFile.write("#!/bin/bash\n")
+      shFile.write("cd $STTB_WDIR\n")
+      shFile.write("rm -rf %s/\n" % self.gitHash)
+
     return
 
 # END Class Worker
 
 class BuildJob():
 
-  def __init__(self, theConfig, jobName, buildCompiler, compVersion, buildType, buildFlags, testFlags):
+  def __init__(self, theConfig, workerName, jobName, buildCompiler, compVersion, buildType, buildFlags, testFlags):
 
     self.jobName       = jobName.strip()
+    self.workerName    = workerName
     self.buildCompiler = buildCompiler
     self.compVersion   = compVersion
     self.buildType     = buildType
@@ -109,9 +120,9 @@ class BuildJob():
     if self.testFlags is not None:
       self.buildFlags.append("BUILD_TESTING")
 
-    self.buildOpt    = self._makeOptString(self.buildFlags, self.buildCompiler, self.buildType)
-    self.buildKey    = self._makeKey(self.buildOpt)
-    self.buildName   = "Build_"+self.buildKey
+    self.buildOpt  = ("%s %s %s" % ( self.buildCompiler, self.buildType.strip(), " ".join(self.buildFlags))).strip()
+    self.buildKey  = md5((self.workerName+"_"+self.gitHash+"_"+self.buildOpt).encode("utf-8")).hexdigest()
+    self.buildName = "Build_"+self.buildKey
 
     if self.testFlags is None:
       logger.info("Added build job '%s'" % self.buildOpt)
@@ -120,8 +131,7 @@ class BuildJob():
 
     return
 
-  def writeJobFile(self, workerName, jobDir, jobNo, nJobs):
-
+  def writeJobFile(self, jobDir, jobNo, nJobs):
     shName = "Step_%04d_Build_%s.sh" % (jobNo, self.buildKey)
     bldLog = "Build_%s.log" % self.buildKey
     tstLog = "Test_%s.xml" % self.buildKey
@@ -142,6 +152,7 @@ class BuildJob():
       shFile.write("cd    $BDIR\n")
       shFile.write("\n")
       shFile.write("echo \"## BEGIN BuildLog\" > $BLOG\n")
+      shFile.write("echo \"# JobName         : %s\" >> $BLOG\n" % self.jobName)
       shFile.write("echo \"# BuildName       : %s\" >> $BLOG\n" % self.buildName)
       shFile.write("echo \"# BuildCompiler   : %s\" >> $BLOG\n" % self.buildCompiler)
       shFile.write("echo \"# BuildType       : %s\" >> $BLOG\n" % self.buildType)
@@ -151,7 +162,7 @@ class BuildJob():
       shFile.write("echo \"# GitHash         : %s\" >> $BLOG\n" % self.gitHash)
       shFile.write("echo \"# GitTime         : %s\" >> $BLOG\n" % self.gitTime)
       shFile.write("echo \"# GitMessage      : %s\" >> $BLOG\n" % self.gitMsg)
-      shFile.write("echo \"# WorkerName      : %s\" >> $BLOG\n" % workerName)
+      shFile.write("echo \"# WorkerName      : %s\" >> $BLOG\n" % self.workerName)
       shFile.write("echo \"# WorkerHost      : $(hostname | head -n1)\" >> $BLOG\n")
       shFile.write("echo \"# WorkerOS        : $(uname -o)\" >> $BLOG\n")
       shFile.write("echo \"# WorkerArch      : $(uname -m)\" >> $BLOG\n")
@@ -178,12 +189,6 @@ class BuildJob():
       shFile.write("echo \"## END BuildLog\" >> $BLOG\n")
 
     return
-
-  def _makeOptString(self, buildFlags, compExec, buildType):
-    return ("%s %s %s" % (compExec, buildType.strip(), " ".join(buildFlags))).strip()
-
-  def _makeKey(self, optString):
-    return md5((self.gitHash+"_"+optString).encode("utf-8")).hexdigest()
 
   def _assembleCMakeFlags(self):
     theFlags  = "-G \"Unix Makefiles\" "
