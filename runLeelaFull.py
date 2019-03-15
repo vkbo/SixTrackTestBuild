@@ -18,7 +18,7 @@ logger = logging.getLogger("sttb-logger")
 theConfig = Config(
   workDir  = "/scratch/SixTrackTestBuilds",
   jobsDir  = "/scratch/SixTrackTestBuilds/sync/jobs",
-  logLevel = "debug"
+  logLevel = "info"
 )
 theConfig.gitCheckout(sys.argv)
 
