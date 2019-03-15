@@ -80,8 +80,13 @@ class Worker():
       shFile.write("cd $STTB_WDIR/%s\n" % self.gitHash)
       shFile.write("git fetch origin %s:tmpbranch\n" % self.gitRef)
       shFile.write("git checkout --detach %s\n" % self.gitHash)
+      shFile.write("if [ -d \"SixTrack\" ]; then\n")
+      shFile.write("  cd SixTrack\n")
+      shFile.write("  ./buildLibraries.sh\n")
+      shFile.write("else\n")
       for libDep in self.libDepend:
-        shFile.write("./buildLibraries.sh %s\n" % libDep)
+        shFile.write("  ./buildLibraries.sh %s\n" % libDep)
+      shFile.write("fi\n")
 
     for aJob in self.theJobs:
       jobNo += 1
@@ -121,7 +126,7 @@ class BuildJob():
       self.buildFlags.append("BUILD_TESTING")
 
     self.buildOpt  = ("%s %s %s" % ( self.buildCompiler, self.buildType.strip(), " ".join(self.buildFlags))).strip()
-    self.buildKey  = md5((self.workerName+"_"+self.gitHash+"_"+self.buildOpt).encode("utf-8")).hexdigest()
+    self.buildKey  = md5((self.workerName+"_"+self.jobName+"_"+self.gitHash).encode("utf-8")).hexdigest()
     self.buildName = "Build_"+self.buildKey
 
     if self.testFlags is None:
