@@ -28,9 +28,12 @@ theConfig.gitCheckout(sys.argv)
 
 xDebian10 = Worker(theConfig, "Debian10")
 xDebian10.addCompiler("gfortran", "--version")
+xDebian10.addCompiler("ifort",    "--version")
+xDebian10.addCompiler("nagfor",   "-V")
 xDebian10.setLibDependencies(["naff"])
 
-xDebian10.addJob("Standard Double",           "gfortran", "Release", "",   "-L fast")
-xDebian10.addJob("Checkpoint/Restart Double", "gfortran", "Release", "CR", "-L fast")
+xDebian10.addJob("Standard Double", "gfortran", "Release", "", "-L fast")
+xDebian10.addJob("Standard Double", "ifort",    "Release", "", "-L fast")
+xDebian10.addJob("Standard Double", "nagfor",   "Release", "", "-L fast")
 
 xDebian10.writeJobFiles()
