@@ -126,7 +126,7 @@ class BuildJob():
       self.buildFlags.append("BUILD_TESTING")
 
     self.buildOpt  = ("%s %s %s" % ( self.buildCompiler, self.buildType.strip(), " ".join(self.buildFlags))).strip()
-    self.buildKey  = md5((self.workerName+"_"+self.jobName+"_"+self.gitHash).encode("utf-8")).hexdigest()
+    self.buildKey  = md5((self.workerName+"_"+self.jobName+"_"+self.gitHash+"_"+self.buildOpt).encode("utf-8")).hexdigest()
     self.buildName = "Build_"+self.buildKey
 
     if self.testFlags is None:
