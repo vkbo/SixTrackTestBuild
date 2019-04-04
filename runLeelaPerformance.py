@@ -30,7 +30,7 @@ xDebian10 = Worker(theConfig, "Debian10")
 xDebian10.addCompiler("gfortran", "--version")
 xDebian10.addCompiler("ifort",    "--version")
 xDebian10.addCompiler("nagfor",   "-V")
-xDebian10.setLibDependencies(["naff","boinc"])
+xDebian10.setLibDependencies(["naff"])
 
 xDebian10.addJob("Performance GNU",   "gfortran", "Release", "", "-E prob")
 xDebian10.addJob("Performance Intel", "ifort",    "Release", "", "-E prob")
